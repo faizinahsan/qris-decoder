@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"strconv"
+	"strings"
 )
 
 type TLV struct {
@@ -149,6 +150,43 @@ func isMerchantAccountTag(tag string) bool {
 	return t >= 26 && t <= 51
 }
 
+var mandatoryTags = map[string]bool{
+	"00": true,
+	"52": true,
+	"53": true,
+	"58": true,
+	"59": true,
+	"60": true,
+	"63": true,
+}
+
+func crc16CCITT(data string) uint16 {
+	var crc uint16 = 0xFFFF
+
+	for i := 0; i < len(data); i++ {
+		crc ^= uint16(data[i]) << 8
+		for j := 0; j < 8; j++ {
+			if crc&0x8000 != 0 {
+				crc = (crc << 1) ^ 0x1021
+			} else {
+				crc <<= 1
+			}
+		}
+	}
+
+	return crc
+}
+
+func validateMandatory(tags map[string]bool) []string {
+	var errors []string
+	for tag := range mandatoryTags {
+		if !tags[tag] {
+			errors = append(errors, "missing mandatory tag "+tag)
+		}
+	}
+	return errors
+}
+
 func main() {
 	qr := "00020101021126670015ID.CO.JALIN.WWW011893600916237846693302151995432187654340303UMI51450015ID.CO.JALIN.WWW0215ID10190021351360303UMI5204581253033605802ID5918Merchant Jalin UAT6015Jakarta Selatan61051287262320303777070783218430810V4L1D4T1N663040CC5"
 
@@ -169,7 +207,6 @@ func main() {
 		fmt.Println("Length :", tlv.Length)
 		fmt.Println("Value  :", tlv.Value)
 
-		// Merchant Account Info
 		if isMerchantAccountTag(tlv.Tag) {
 			sub := parseSubTLV(tlv.Value)
 			fmt.Println(" Subtags:")
@@ -182,7 +219,6 @@ func main() {
 			}
 		}
 
-		// Additional Data
 		if tlv.Tag == "62" {
 			sub := parseSubTLV(tlv.Value)
 			fmt.Println(" Subtags:")
@@ -194,5 +230,122 @@ func main() {
 				fmt.Printf("  - %s (%s): %s\n", s.Tag, subName, s.Value)
 			}
 		}
+	}
+
+	// VALIDATION
+	validateQRIS(qr, tlvs)
+}
+
+func validateQRIS(qr string, tlvs []TLV) {
+	fmt.Println("\n===== VALIDATION =====")
+
+	found := map[string]TLV{}
+
+	var gui string
+	var merchantPAN string
+	var country string
+	var crc string
+	var tipIndicator string
+
+	for _, t := range tlvs {
+		found[t.Tag] = t
+
+		if isMerchantAccountTag(t.Tag) {
+			sub := parseSubTLV(t.Value)
+			for _, s := range sub {
+				if s.Tag == "00" {
+					gui = s.Value
+				}
+				if s.Tag == "01" {
+					merchantPAN = s.Value
+				}
+			}
+		}
+
+		if t.Tag == "58" {
+			country = t.Value
+		}
+
+		if t.Tag == "55" {
+			tipIndicator = t.Value
+		}
+
+		if t.Tag == "63" {
+			crc = t.Value
+		}
+	}
+
+	var errors []string
+
+	// Mandatory tag
+	mandatory := []string{"00", "01", "52", "53", "58", "59", "60", "63"}
+	for _, m := range mandatory {
+		if _, ok := found[m]; !ok {
+			errors = append(errors, "missing mandatory tag "+m)
+		}
+	}
+
+	// CRC validation
+	idx := strings.Index(qr, "6304")
+	if idx == -1 {
+		errors = append(errors, "CRC tag not found")
+	} else {
+		payload := qr[:idx+4]
+		calculated := fmt.Sprintf("%04X", crc16CCITT(payload))
+		if calculated != crc {
+			errors = append(errors, "CRC mismatch")
+		}
+	}
+
+	// Merchant PAN validation
+	if merchantPAN == "" {
+		errors = append(errors, "merchant PAN not found")
+	}
+
+	if len(merchantPAN) < 10 {
+		errors = append(errors, "merchant PAN too short")
+	}
+
+	// GUI validation
+	if gui == "" {
+		errors = append(errors, "acquirer GUI not found")
+	}
+
+	// Country validation
+	if country == "" {
+		errors = append(errors, "country code missing")
+	}
+
+	// Cross Border
+	crossBorder := false
+	if country != "ID" {
+		crossBorder = true
+	}
+	if !strings.HasPrefix(gui, "ID.") {
+		crossBorder = true
+	}
+
+	// Result
+	if len(errors) == 0 {
+		fmt.Println("Status : VALID QRIS")
+	} else {
+		fmt.Println("Status : INVALID QRIS")
+		for _, e := range errors {
+			fmt.Println("Error  :", e)
+		}
+	}
+
+	fmt.Println("Acquirer GUI :", gui)
+	fmt.Println("Merchant PAN :", merchantPAN)
+	fmt.Println("Country      :", country)
+
+	if tipIndicator != "" {
+		fmt.Println("Tip Indicator:", tipIndicator)
+	}
+
+	if crossBorder {
+		fmt.Println("QR Type      : CROSS BORDER")
+	} else {
+		fmt.Println("QR Type      : DOMESTIC")
 	}
 }

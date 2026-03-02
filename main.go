@@ -12,6 +12,11 @@ type TLV struct {
 	Value  string
 }
 
+type QRISData struct {
+	Tags    map[int]string         // Root tags: key = tag, value = value
+	SubTags map[int]map[int]string // Subtags: key = parent tag, value = map of subtag
+}
+
 var rootTagName = map[string]string{
 	"00": "Payload Format Indicator",
 	"01": "Point of Initiation Method",
@@ -112,6 +117,34 @@ func parseTLV(data string) ([]TLV, error) {
 	return result, nil
 }
 
+func parseQRISToMap(qr string) (*QRISData, error) {
+	tlvs, err := parseTLV(qr)
+	if err != nil {
+		return nil, err
+	}
+
+	data := &QRISData{
+		Tags:    make(map[int]string),
+		SubTags: make(map[int]map[int]string),
+	}
+
+	for _, tlv := range tlvs {
+		tag, _ := strconv.Atoi(tlv.Tag)
+		data.Tags[tag] = tlv.Value
+
+		if isMerchantAccountTag(tlv.Tag) || tlv.Tag == "62" {
+			sub := parseSubTLV(tlv.Value)
+			data.SubTags[tag] = make(map[int]string)
+			for _, s := range sub {
+				subTag, _ := strconv.Atoi(s.Tag)
+				data.SubTags[tag][subTag] = s.Value
+			}
+		}
+	}
+
+	return data, nil
+}
+
 func parseSubTLV(data string) []TLV {
 	var result []TLV
 	i := 0
@@ -189,6 +222,32 @@ func validateMandatory(tags map[string]bool) []string {
 
 func main() {
 	qr := "00020101021126670015ID.CO.JALIN.WWW011893600916237846693302151995432187654340303UMI51450015ID.CO.JALIN.WWW0215ID10190021351360303UMI5204581253033605802ID5918Merchant Jalin UAT6015Jakarta Selatan61051287262320303777070783218430810V4L1D4T1N663040CC5"
+
+	// Parse ke map
+	qrisData, err := parseQRISToMap(qr)
+	if err != nil {
+		panic(err)
+	}
+
+	// Contoh akses data langsung dari map
+	fmt.Println("===== AKSES DATA DARI MAP =====")
+	fmt.Println("Merchant Name:", qrisData.Tags[59])
+	fmt.Println("Merchant City:", qrisData.Tags[60])
+	fmt.Println("MCC          :", qrisData.Tags[52])
+	fmt.Println("Currency     :", qrisData.Tags[53])
+	if amount, ok := qrisData.Tags[54]; ok {
+		fmt.Println("Amount       :", amount)
+	}
+	if subtags, ok := qrisData.SubTags[26]; ok {
+		fmt.Println("Acquirer     :", subtags[0])
+		fmt.Println("Merchant PAN :", subtags[1])
+		fmt.Println("Merchant ID  :", subtags[2])
+	}
+	if subtags, ok := qrisData.SubTags[62]; ok {
+		if invoice, ok := subtags[5]; ok {
+			fmt.Println("Invoice      :", invoice)
+		}
+	}
 
 	tlvs, err := parseTLV(qr)
 	if err != nil {

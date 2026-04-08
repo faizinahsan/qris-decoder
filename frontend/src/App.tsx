@@ -2,9 +2,10 @@ import { useState } from 'react'
 import { useQRISDecode } from './features/qris/hooks/useQRISDecode'
 import { QRISForm } from './features/qris/components/QRISForm'
 import { QRISImageUpload } from './features/qris/components/QRISImageUpload'
+import { QRISCamera } from './features/qris/components/QRISCamera'
 import { QRISResult } from './features/qris/components/QRISResult'
 
-type Tab = 'manual' | 'image'
+type Tab = 'manual' | 'image' | 'camera'
 
 export default function App() {
   const [tab, setTab] = useState<Tab>('manual')
@@ -29,12 +30,19 @@ export default function App() {
             style={{ ...styles.tab, ...(tab === 'image' ? styles.tabActive : {}) }}
             onClick={() => setTab('image')}
           >
-            📷 Upload Foto
+            🖼️ Upload Foto
+          </button>
+          <button
+            style={{ ...styles.tab, ...(tab === 'camera' ? styles.tabActive : {}) }}
+            onClick={() => setTab('camera')}
+          >
+            📷 Kamera
           </button>
         </div>
 
         {tab === 'manual' && <QRISForm onSubmit={decode} loading={loading} />}
         {tab === 'image' && <QRISImageUpload onDecoded={decode} loading={loading} />}
+        {tab === 'camera' && <QRISCamera onDecoded={decode} loading={loading} />}
 
         {error && <div style={styles.errorBox}>{error}</div>}
         {result && <QRISResult data={result} />}

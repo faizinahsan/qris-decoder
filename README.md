@@ -2,6 +2,53 @@
 
 Decoder untuk QRIS, menampilkan data tag dan namanya.
 
+## Menjalankan dengan Docker
+
+Pastikan Docker dan Docker Compose sudah terinstall.
+
+```bash
+# Jalankan semua service (backend + frontend)
+docker compose up -d
+```
+
+Aplikasi tersedia di **http://localhost**
+
+```bash
+# Rebuild setelah ada perubahan code
+docker compose up -d --build
+
+# Lihat logs semua service
+docker compose logs -f
+
+# Lihat logs per service
+docker compose logs -f backend
+docker compose logs -f frontend
+
+# Stop semua service
+docker compose down
+```
+
+## Menjalankan Lokal (tanpa Docker)
+
+```bash
+# Backend (Go)
+go run main.go
+
+# Frontend (React) — di terminal terpisah
+cd frontend && npm install && npm run dev
+```
+
+Backend berjalan di `localhost:8080`, frontend di `localhost:5173`.
+
+## Arsitektur
+
+```
+Browser → nginx:80
+           ├── /       → React static files
+           └── /api/   → proxy → backend:8080
+```
+
+
 ## Mapping Lengkap Tag QRIS (Production Reference)
 
 ### 1. Payload Level (Root TLV)

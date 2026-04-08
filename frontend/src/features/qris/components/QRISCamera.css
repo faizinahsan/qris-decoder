@@ -1,0 +1,12 @@
+.qris-corner {
+  position: absolute;
+  width: 18px;
+  height: 18px;
+  border: 3px solid #3b82f6;
+  border-radius: 2px;
+}
+
+.qris-corner.tl { top: 0;    left: 0;  border-right: none; border-bottom: none; }
+.qris-corner.tr { top: 0;    right: 0; border-left: none;  border-bottom: none; }
+.qris-corner.bl { bottom: 0; left: 0;  border-right: none; border-top: none;    }
+.qris-corner.br { bottom: 0; right: 0; border-left: none;  border-top: none;    }
